@@ -30,17 +30,8 @@
 // Disable moodle specific debug messages and any errors in output,
 // comment out when debugging or better look into error log!
 defined('MOODLE_INTERNAL') || die();
-echo "hi";
 global $CFG;
 ?>
-
-<?php
-              $_SESSION['amount']=$cost;
-              $_SESSION['description']=$coursefullname;
-              $_SESSION['courseid']=$course->id;
-              $_SESSION['currency']=$instance->currency;
-?>
-
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js">
 </script>
 <script>
@@ -161,7 +152,10 @@ if ($costvalue == 000) {  ?>
       },
     };
 
-    var cardElement = elements.create('card', {style: style});
+    var cardElement = elements.create('card', {
+      // hidePostalCode: true,
+      style: style
+    });
     cardElement.mount('#card-element');
     var cardholderName = "<?php echo $userfullname; ?>";
     var emailId = "<?php echo $USER->email; ?>";
@@ -173,7 +167,7 @@ if ($costvalue == 000) {  ?>
 
       postalCode = event.value['postalCode'];
 
-    });
+    });    
 
     cardButton.addEventListener('click', function(event) {
 
@@ -184,20 +178,28 @@ if ($costvalue == 000) {  ?>
       }
 
       if (status == 0 || status == null) {
-         $("#transaction-status").css("display", "none");
+        $("#transaction-status").css("display", "none");
+
       } else {
-         $("#transaction-status").css("display", "block");
-      
-         $.ajax({
+        $("#transaction-status").css("display", "block");
+        $("#card-button").attr("disabled", true);
+        
+        $.ajax({
 
           url: "<?php echo $CFG->wwwroot; ?>/enrol/stripepayment/paymentintendsca.php",
           method: 'POST',
           data: {
+              'secretkey' : "<?php echo $this->get_config('secretkey'); ?>",
+              'amount' : "<?php echo str_replace(".", "", $cost); ?>",
+              'currency' : "<?php echo strtolower($instance->currency); ?>",
+              'description' : "<?php echo 'Enrolment charge for '.$coursefullname; ?>",
+              'courseid' : "<?php echo $course->id; ?>",
               'receiptemail' : emailId,
-          },
+          }
+        })
 
-          success: function(data) {
-            var clientSecret = data;
+        .done( function(data) {
+          var clientSecret = data;
 
             stripe.handleCardPayment(
               clientSecret, cardElement,
@@ -208,7 +210,8 @@ if ($costvalue == 000) {  ?>
               }
             ).then(function(result) {
               if (result.error) {
-                // Display error.message in your UI.
+                // Display error.message in your UI. 
+                $("#transaction-status").html("<center> Sorry! Your transaction is failed. Stripe Error Code : " + result.error.code + "</center>");             
               } else {
                 // The setup has succeeded. Display a success message.
                 var result = Object.keys(result).map(function(key) {
@@ -218,13 +221,10 @@ if ($costvalue == 000) {  ?>
                 document.getElementById("stripeform").submit();
               }
             });
-          },
-
-          error: function() {
-            $("#transaction-status").html("<center> Sorry! Your transaction is failed. </center>");
-          },
-                            
-        });
+        } )
+        .fail( function(jqXHR, textStatus, errorThrown) {
+          $("#transaction-status").html("<center> Sorry! Your transaction is failed. Kindly contact your system administrator. </center>");
+        } );
       
       }
     });
